@@ -1,7 +1,9 @@
 {
   "domain": "mg5",
   "name": "MG5",
-  "codeowners": [],
+  "codeowners": [
+    "Teetuomio"
+  ],
   "config_flow": true,
   "dependencies": [],
   "documentation": "https://github.com/Teetuomio/MG5-2022-HomeAssistant-connection",

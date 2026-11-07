@@ -181,6 +181,12 @@ Set the climate temperature first, then turn it on. The on command includes that
 
 A rejected command raises an error in Home Assistant and fires `mg5_command_failed` with `source` and `error`. The event does not include the account or the full VIN.
 
+## Development
+
+The climate command bytes, the status-to-mode mapping and the command queue were worked out against a real 2022 MG5 with debug logs from the iSmart API, then checked against the generic MG SAIC integration's behaviour on the same car.
+
+This codebase was written with AI assistance (Grok 4.7 for the first implementation, Claude Opus 5.5 for the rewrite) and reviewed line by line, then tested on the car, by the repository owner. The tests, the protocol notes and the profile logic are part of that review. If you reuse the protocol findings, they were verified on one car — an EP21/EP22 series MG5 Electric.
+
 ## Tests
 
 ```bash
@@ -196,3 +202,5 @@ pytest
 ```
 
 The tests use an anonymized 2022 MG5 status (state of charge, voltages, climate status 2, the bogus 72.5 kWh capacity) and check the climate bytes against the iSmart client. They do not contact MG. Lock, climate and charging still have to be tried once on your own car.
+
+Tested on Home Assistant **2026.10.4** with an MG5 Electric 2022 (Long Range, 61.1 kWh). The minimum version in `hacs.json` (2025.1) is the author's stated floor, not something every release has been run against.
