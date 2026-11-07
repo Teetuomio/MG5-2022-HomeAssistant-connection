@@ -37,7 +37,17 @@ iSmart allows one session per account. If Home Assistant signs in with the accou
 
 If the generic MG SAIC integration is configured for the same car, remove it under **Settings → Devices & services**. Two integrations polling the same car wake it more often, and they log each other out.
 
-### 3. Copy the files
+### 3. Install the integration
+
+**With HACS (recommended, gets updates):**
+
+1. In Home Assistant open **HACS → Integrations**.
+2. Open the **⋮** menu (top right) → **Custom repositories**.
+3. Paste `https://github.com/Teetuomio/MG5-2022-HomeAssistant-connection`, choose category **Integration**, and add it.
+4. Find **MG5** in the HACS integration list and choose **Download**.
+5. Restart Home Assistant.
+
+**Manually (no HACS):**
 
 Copy the folder `custom_components/mg5` from this repository so that it ends up at `/config/custom_components/mg5/`. The `manifest.json` file must be directly inside that folder:
 
@@ -64,7 +74,7 @@ Pick one way:
   cp -r /path/to/repo/custom_components/mg5 custom_components/
   ```
 
-- **HACS:** HACS only downloads from public GitHub repositories. This project lives at [cursor.com/codebase/teemu-tuomioja/mg5-ha-integration](https://cursor.com/codebase/teemu-tuomioja/mg5-ha-integration), so use one of the copy methods above. If you later publish a copy on GitHub, add it in HACS under **⋮ → Custom repositories** with type **Integration**.
+A manual install does not update itself: repeat the copy for each new release.
 
 ### 4. Restart
 
