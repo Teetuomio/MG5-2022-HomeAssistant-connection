@@ -1,5 +1,6 @@
 """Decoding and the MG5 2022 entity set."""
 
+from dataclasses import replace
 from datetime import UTC, datetime
 
 from custom_components.mg5.profile import (
@@ -13,6 +14,7 @@ from custom_components.mg5.profile import (
     entity_keys,
     hvac_mode_name,
     is_mg5,
+    keep_odometer,
     merge_cached,
     pack_kwh,
     temperature_action,
@@ -208,3 +210,23 @@ def test_cached_read_keeps_state_of_charge():
     assert merged.battery_energy_kwh == live.battery_energy_kwh
     assert merged.target_soc == 80
     assert merged.charging is False
+
+
+def test_sentinel_and_absurd_mileage_are_dropped():
+    """The cloud answers -128 when it has no mileage; never publish that."""
+    assert _snapshot(basic={"mileage": -128}).odometer_km is None
+    assert _snapshot(basic={"mileage": 0}).odometer_km == 0.0
+    assert _snapshot(basic={"mileage": 30_000_000}).odometer_km is None
+    assert _snapshot(basic={"mileage": None}).odometer_km is None
+
+
+def test_odometer_never_runs_backwards():
+    good = _snapshot()
+    bad = replace(good, odometer_km=-12.8)
+    missing = replace(good, odometer_km=None)
+    higher = replace(good, odometer_km=69_600.0)
+
+    assert keep_odometer(good, bad).odometer_km == good.odometer_km
+    assert keep_odometer(good, missing).odometer_km == good.odometer_km
+    assert keep_odometer(good, higher).odometer_km == 69_600.0
+    assert keep_odometer(None, bad).odometer_km == -12.8
