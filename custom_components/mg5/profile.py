@@ -158,10 +158,29 @@ def climate_off_command() -> ClimateCommand:
     return ClimateCommand(fan_speed=0, ac_on=False, temperature_idx=0)
 
 
+MAX_ODOMETER_KM = 2_000_000.0
+
+
 def _tenths(value: int | float | None) -> float | None:
     if value is None:
         return None
     return float(value) / 10
+
+
+def _odometer_km(value: int | float | None) -> float | None:
+    """Mileage in km, or None when the API returns a value the car cannot have.
+
+    The iSmart cloud occasionally answers with a negative or absurd mileage
+    (a raw -128 was seen on a real car, which became -12.8 km). Publishing that
+    would show a wrong number and, because the sensor is total_increasing,
+    corrupt long-term statistics.
+    """
+    if value is None:
+        return None
+    km = float(value) / 10
+    if km < 0 or km > MAX_ODOMETER_KM:
+        return None
+    return km
 
 
 def _aux_voltage(raw: int | float | None) -> float | None:
@@ -429,7 +448,7 @@ def decode_snapshot(
             charge.get("bmsEstdElecRng"),
             basic.get("fuelRangeElec"),
         ),
-        odometer_km=_tenths(basic.get("mileage")),
+        odometer_km=_odometer_km(basic.get("mileage")),
         interior_c=clean_temperature(basic.get("interiorTemperature")),
         exterior_c=clean_temperature(basic.get("exteriorTemperature")),
         aux_voltage=_aux_voltage(basic.get("batteryVoltage")),
@@ -467,6 +486,17 @@ def decode_snapshot(
         altitude_m=None if gps_altitude is None else float(gps_altitude),
         source=source,
     )
+
+
+def keep_odometer(previous: Mg5Snapshot | None, current: Mg5Snapshot) -> Mg5Snapshot:
+    """An odometer never runs backwards or disappears: keep the last good value."""
+    if previous is None or previous.odometer_km is None:
+        return current
+    if current.odometer_km is None:
+        return replace(current, odometer_km=previous.odometer_km)
+    if current.odometer_km < previous.odometer_km:
+        return replace(current, odometer_km=previous.odometer_km)
+    return current
 
 
 def merge_cached(previous: Mg5Snapshot | None, cached: Mg5Snapshot) -> Mg5Snapshot:

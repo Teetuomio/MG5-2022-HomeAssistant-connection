@@ -41,7 +41,7 @@ from .const import (
     DOMAIN,
     EVENT_COMMAND_FAILED,
 )
-from .profile import Mg5Snapshot, decode_snapshot, merge_cached
+from .profile import Mg5Snapshot, decode_snapshot, keep_odometer, merge_cached
 from .schedule import (
     POST_COMMAND_DELAY,
     TEMP_DEBOUNCE_SECONDS,
@@ -187,7 +187,7 @@ class Mg5Coordinator(DataUpdateCoordinator[Mg5Snapshot]):
                 if is_auth_error(live_err):
                     raise ConfigEntryAuthFailed(public_error(live_err)) from live_err
                 raise UpdateFailed(public_error(live_err)) from live_err
-        return self._maybe_arm_initial_live(snapshot)
+        return self._maybe_arm_initial_live(keep_odometer(self.data, snapshot))
 
     def _stamp(self, kind: str) -> None:
         now = time.monotonic()
