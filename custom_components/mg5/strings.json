@@ -1,0 +1,62 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "MG5",
+        "description": "Sign in with a secondary MG iSmart account. Home Assistant logs the phone app out of any account it uses. Only a 2022 MG5 Electric is set up. Heated seats, windows, a sunroof and battery heating are not offered, because this car does not run those commands.",
+        "data": {
+          "account_type": "Account",
+          "username": "Email or phone number",
+          "password": "Password",
+          "region": "Region",
+          "country_code": "Country code",
+          "battery_pack": "Battery"
+        },
+        "data_description": {
+          "country_code": "Required for a phone account. Digits only, for example 358.",
+          "battery_pack": "Used to convert state of charge into kWh. The car's own percentage and range are unchanged."
+        }
+      },
+      "vehicle": {
+        "title": "Choose the MG5",
+        "description": "Cars on this account that are not an MG5 are hidden.",
+        "data": {
+          "vin": "Vehicle"
+        }
+      },
+      "reauth_confirm": {
+        "title": "MG5 password",
+        "description": "iSmart rejected the password. Enter it again.",
+        "data": {
+          "password": "Password"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Could not sign in. Check the account and password.",
+      "cannot_connect": "MG iSmart did not respond. Try again in a minute.",
+      "timeout": "MG iSmart took too long to answer. The car may be asleep. Try again.",
+      "country_code": "Enter the phone country code without a plus, for example 358.",
+      "unknown": "Something went wrong talking to MG iSmart.",
+      "invalid_email": "Enter the email address of the iSmart account.",
+      "invalid_phone": "Enter the phone number of the iSmart account, digits only."
+    },
+    "abort": {
+      "no_mg5": "This account has no MG5 Electric. Other MG models are not set up here, because commands that work on them do nothing on a 2022 MG5.",
+      "already_configured": "This MG5 is already configured.",
+      "reauth_successful": "Signed in again.",
+      "unknown": "Something went wrong."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "MG5 battery",
+        "description": "State of charge and range come from the car. This only converts that percentage into kilowatt-hours. The API reports 72.5 kWh for this car, which is not an MG5 pack.",
+        "data": {
+          "battery_pack": "Battery"
+        }
+      }
+    }
+  }
+}
