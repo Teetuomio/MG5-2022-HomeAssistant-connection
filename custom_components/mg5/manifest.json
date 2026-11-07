@@ -4,10 +4,10 @@
   "codeowners": [],
   "config_flow": true,
   "dependencies": [],
-  "documentation": "https://cursor.com/codebase/teemu-tuomioja/mg5-ha-integration",
+  "documentation": "https://github.com/Teetuumio/mg5-ha-integration",
   "integration_type": "device",
   "iot_class": "cloud_polling",
-  "issue_tracker": "https://cursor.com/codebase/teemu-tuomioja/mg5-ha-integration",
+  "issue_tracker": "https://github.com/Teetuumio/mg5-ha-integration/issues",
   "requirements": [
     "saic-ismart-client-ng==0.13.1"
   ],
