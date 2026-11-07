@@ -51,10 +51,11 @@
   "options": {
     "step": {
       "init": {
-        "title": "MG5 battery",
-        "description": "State of charge and range come from the car. This only converts that percentage into kilowatt-hours. The API reports 72.5 kWh for this car, which is not an MG5 pack.",
+        "title": "MG5 options",
+        "description": "State of charge and range come from the car. The battery pack only converts that percentage into kilowatt-hours. Manual updates stop all background polling: the car is read only when you press Refresh or send a command.",
         "data": {
-          "battery_pack": "Battery"
+          "battery_pack": "Battery",
+          "manual_only": "Update only when I press Refresh (no background polling)"
         }
       }
     }

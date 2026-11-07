@@ -18,6 +18,8 @@ from saic_ismart_client_ng.exceptions import SaicApiException
 
 from .api import VehicleInfo, is_connection_error, public_error
 from .const import (
+    CONF_MANUAL_ONLY,
+    DEFAULT_MANUAL_ONLY,
     ACCOUNT_EMAIL,
     ACCOUNT_PHONE,
     CONF_ACCOUNT_TYPE,
@@ -221,9 +223,18 @@ class Mg5OptionsFlow(OptionsFlow):
         if user_input is not None:
             return self.async_create_entry(data=user_input)
         current = self.config_entry.options.get(CONF_BATTERY, DEFAULT_BATTERY)
+        manual = bool(
+            self.config_entry.options.get(
+                CONF_MANUAL_ONLY,
+                self.config_entry.data.get(CONF_MANUAL_ONLY, DEFAULT_MANUAL_ONLY),
+            )
+        )
         return self.async_show_form(
             step_id="init",
             data_schema=vol.Schema(
-                {vol.Required(CONF_BATTERY, default=current): vol.In(_PACKS)}
+                {
+                    vol.Required(CONF_BATTERY, default=current): vol.In(_PACKS),
+                    vol.Required(CONF_MANUAL_ONLY, default=manual): bool,
+                }
             ),
         )

@@ -15,6 +15,7 @@ CONF_MODEL = "model_name"
 CONF_YEAR = "model_year"
 CONF_SERIES = "series"
 CONF_COLOR = "color"
+CONF_MANUAL_ONLY = "manual_only"
 
 ACCOUNT_EMAIL = "email"
 ACCOUNT_PHONE = "phone"
@@ -32,3 +33,5 @@ DEFAULT_TARGET_TEMP = 22
 
 MANUFACTURER = "MG"
 MODEL = "MG5 Electric"
+
+DEFAULT_MANUAL_ONLY = False

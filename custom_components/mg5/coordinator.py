@@ -83,6 +83,7 @@ class Mg5Coordinator(DataUpdateCoordinator[Mg5Snapshot]):
         model_name: str | None,
         model_year: str | None,
         series: str | None,
+        manual_only: bool = False,
     ) -> None:
         super().__init__(
             hass,
@@ -98,6 +99,7 @@ class Mg5Coordinator(DataUpdateCoordinator[Mg5Snapshot]):
         self.model_name = model_name
         self.model_year = model_year
         self.series = series
+        self.manual_only = manual_only
         self.desired_temperature = DEFAULT_TARGET_TEMP
         self._queue = CommandQueue()
         self._api_lock = asyncio.Lock()
@@ -160,6 +162,7 @@ class Mg5Coordinator(DataUpdateCoordinator[Mg5Snapshot]):
             last_live=self._last_live,
             pending_live_at=self._pending_live_at,
             active=active,
+            manual_only=self.manual_only,
         )
         if kind == "skip" and self.data is not None:
             return self.data

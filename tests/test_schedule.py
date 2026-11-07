@@ -152,3 +152,45 @@ def test_expected_state_clears_when_the_car_agrees():
     assert expected.resolve(False, now=10) is True
     assert expected.resolve(True, now=20) is True
     assert expected.resolve(False, now=30) is False
+
+
+def test_manual_mode_reads_nothing_on_its_own():
+    """Manual mode: no background polls, even when the cached status is stale."""
+    assert (
+        choose_fetch(
+            now=CACHED_INTERVAL * 10,
+            has_snapshot=True,
+            last_cached=0,
+            last_live=0,
+            pending_live_at=None,
+            active=True,
+            manual_only=True,
+        )
+        == "skip"
+    )
+    # The first read still happens, so the entities are not empty after setup.
+    assert (
+        choose_fetch(
+            now=0,
+            has_snapshot=False,
+            last_cached=None,
+            last_live=None,
+            pending_live_at=None,
+            active=False,
+            manual_only=True,
+        )
+        == "cached"
+    )
+    # Refresh and post-command reads still work.
+    assert (
+        choose_fetch(
+            now=10,
+            has_snapshot=True,
+            last_cached=0,
+            last_live=0,
+            pending_live_at=5,
+            active=False,
+            manual_only=True,
+        )
+        == "live"
+    )

@@ -15,7 +15,9 @@ from .const import (
     CONF_SERIES,
     CONF_VIN,
     CONF_YEAR,
+    CONF_MANUAL_ONLY,
     DEFAULT_BATTERY,
+    DEFAULT_MANUAL_ONLY,
     DOMAIN,
 )
 from .coordinator import Mg5Coordinator, async_create_client
@@ -45,6 +47,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         model_name=entry.data.get(CONF_MODEL),
         model_year=entry.data.get(CONF_YEAR),
         series=entry.data.get(CONF_SERIES),
+        manual_only=bool(
+            entry.options.get(
+                CONF_MANUAL_ONLY, entry.data.get(CONF_MANUAL_ONLY, DEFAULT_MANUAL_ONLY)
+            )
+        ),
     )
     try:
         await coordinator.async_config_entry_first_refresh()

@@ -13,5 +13,5 @@
   "requirements": [
     "saic-ismart-client-ng==0.13.1"
   ],
-  "version": "0.2.0"
+  "version": "0.2.1"
 }

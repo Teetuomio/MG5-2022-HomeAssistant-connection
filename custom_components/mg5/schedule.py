@@ -47,12 +47,17 @@ def choose_fetch(
     last_live: float | None,
     pending_live_at: float | None,
     active: bool,
+    manual_only: bool = False,
 ) -> FetchKind:
     """Pick the next read. The first read is cached so setup does not wake the car."""
     if not has_snapshot:
         return "cached"
     if pending_live_at is not None and now >= pending_live_at:
         return "live"
+    # Manual mode: nothing is read unless the user presses Refresh or a command
+    # is sent. No background polling, no data use, no waking the car.
+    if manual_only:
+        return "skip"
     if active and (last_live is None or now - last_live >= LIVE_INTERVAL):
         return "live"
     last_quiet = last_cached if last_cached is not None else last_live
