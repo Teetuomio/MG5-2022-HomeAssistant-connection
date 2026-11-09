@@ -9,6 +9,7 @@ from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers import translation
 from homeassistant.util import dt as dt_util
 from pytest_homeassistant_custom_component.common import (
     async_capture_events,
@@ -87,10 +88,41 @@ async def test_reported_schedule_is_shown(hass: HomeAssistant, saic, entry) -> N
     assert select.attributes["friendly_name"] == "MG5 0001 Charging schedule"
     assert hass.states.get(_id(hass, "sensor", "reported_charging_start")).state == "22:30"
     assert hass.states.get(_id(hass, "sensor", "reported_charging_end")).state == "06:00"
-    mode = hass.states.get(_id(hass, "sensor", "reported_charging_schedule"))
+    mode_id = _id(hass, "sensor", "reported_charging_schedule")
+    mode = hass.states.get(mode_id)
     assert mode.state == "until_end_time"
     assert mode.attributes["friendly_name"] == "MG5 0001 Reported charging schedule"
+    assert mode.attributes["options"] == ["disabled", "until_end_time", "until_target_soc"]
+    assert er.async_get(hass).async_get(mode_id).translation_key == "charging_schedule"
     saic.set_schedule_charging.assert_not_awaited()
+
+
+async def test_reported_schedule_name_and_states_come_from_translations(
+    hass: HomeAssistant, saic, entry
+) -> None:
+    await _setup_with(hass, saic, entry, **SCHEDULE)
+    strings = await translation.async_get_translations(hass, "en", "entity", {DOMAIN})
+    prefix = f"component.{DOMAIN}.entity.sensor.charging_schedule"
+    assert strings[f"{prefix}.name"] == "Reported charging schedule"
+    assert strings[f"{prefix}.state.disabled"] == "Disabled"
+    assert strings[f"{prefix}.state.until_end_time"] == "Until end time"
+    assert strings[f"{prefix}.state.until_target_soc"] == "Until target SOC"
+
+    sensor = next(
+        entity
+        for entity in hass.data["sensor"].entities
+        if entity.unique_id == f"{VIN}_reported_charging_schedule"
+    )
+    assert sensor.translation_key == "charging_schedule"
+    assert not hasattr(sensor, "_attr_name")
+    assert sensor.name == "Reported charging schedule"
+    assert sensor.device_class == "enum"
+
+    other = next(
+        entity for entity in hass.data["sensor"].entities if entity.unique_id == f"{VIN}_soc"
+    )
+    assert other.translation_key is None
+    assert other.name == "State of charge"
 
 
 async def test_no_reported_schedule_loads_as_unknown(

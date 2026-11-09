@@ -73,7 +73,10 @@ class Mg5Sensor(Mg5Entity, SensorEntity):
         super().__init__(coordinator)
         self._spec = spec
         self._attr_unique_id = f"{coordinator.vin}_{spec.key}"
-        self._attr_name = spec.name
+        if spec.translation_key:
+            self._attr_translation_key = spec.translation_key
+        else:
+            self._attr_name = spec.name
         self._attr_device_class = _DEVICE_CLASS.get(spec.device_class) if spec.device_class else None
         self._attr_native_unit_of_measurement = _UNIT.get(spec.unit) if spec.unit else None
         self._attr_state_class = _STATE_CLASS.get(spec.state_class) if spec.state_class else None
@@ -81,8 +84,6 @@ class Mg5Sensor(Mg5Entity, SensorEntity):
             self._attr_icon = spec.icon
         if spec.options:
             self._attr_options = list(spec.options)
-        if spec.translation_key:
-            self._attr_translation_key = spec.translation_key
 
     @property
     def native_value(self):  # type: ignore[no-untyped-def]
