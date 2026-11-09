@@ -207,12 +207,7 @@ pip install -r requirements-dev.txt
 pytest
 ```
 
-That runs the decoding, command-byte and scheduling tests on plain Python. To also run the Home Assistant tests in `tests/ha` (setup, config flow, re-auth, every control against a mocked iSmart API), use Python 3.13 and install the Home Assistant test harness:
-
-```bash
-pip install -r requirements-dev.txt pytest-homeassistant-custom-component
-pytest
-```
+On Python 3.12 or 3.13 that runs the decoding, command-byte and scheduling tests. On Python 3.14 the same file also installs the pinned Home Assistant test harness (`pytest-homeassistant-custom-component==0.13.375`, Home Assistant 2026.10.4), and `pytest` runs the Home Assistant tests in `tests/ha` too (setup, config flow, re-auth, every control against a mocked iSmart API). CI runs both, and a failure in either fails the build.
 
 The tests use an anonymized 2022 MG5 status (state of charge, voltages, climate status 2, the bogus 72.5 kWh capacity) and check the climate bytes against the iSmart client. They do not contact MG. Lock, climate and charging still have to be tried once on your own car.
 
