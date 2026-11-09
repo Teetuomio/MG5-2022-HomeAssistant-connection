@@ -9,6 +9,7 @@
 
 ### Changed
 
+- The first schedule can be set from Home Assistant even if the car reports no window (or mode 0): unreported parts are filled as mode Disabled and 22:00–06:00. Nothing is sent until you change the start, end or mode.
 - Changing the start, end or mode sends the whole window once. Edits made within 3 seconds of each other are sent as one command, and choosing what the car already has sends nothing. Commands still go through the 25-second queue and are followed by one live read.
 - If a live charging read has none of the schedule fields, the integration logs the fields the car did send, once per start, so the real field names can be checked.
 

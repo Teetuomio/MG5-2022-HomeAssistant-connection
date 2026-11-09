@@ -291,6 +291,26 @@ class ChargeSchedule:
         return self.start is not None and self.end is not None and self.mode is not None
 
 
+# Used only to build the first command when the car has reported no window.
+# A typical overnight off-peak window; hour and minute, repeated daily.
+DEFAULT_SCHEDULE_START = time(22, 0)
+DEFAULT_SCHEDULE_END = time(6, 0)
+
+
+def fill_schedule(schedule: ChargeSchedule) -> ChargeSchedule:
+    """Complete a window the car has not fully reported, so it can be sent.
+
+    A missing mode becomes disabled, so filling in never starts a schedule on
+    its own. Missing times become 22:00 and 06:00. Hour and minute only; there
+    is no date or weekday.
+    """
+    return ChargeSchedule(
+        start=DEFAULT_SCHEDULE_START if schedule.start is None else schedule.start,
+        end=DEFAULT_SCHEDULE_END if schedule.end is None else schedule.end,
+        mode=SCHEDULE_DISABLED if schedule.mode is None else schedule.mode,
+    )
+
+
 @dataclass(frozen=True)
 class ScheduleCommand:
     start: time

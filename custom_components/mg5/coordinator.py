@@ -47,6 +47,7 @@ from .profile import (
     ChargeSchedule,
     Mg5Snapshot,
     decode_snapshot,
+    fill_schedule,
     keep_odometer,
     merge_cached,
 )
@@ -398,20 +399,21 @@ class Mg5Coordinator(DataUpdateCoordinator[Mg5Snapshot]):
         as one command, so moving a time picker twice spends one remote command.
         Superseded calls return quietly; the call that sends raises if the car
         rejects the schedule.
+
+        If the car has not reported a full window, the parts it did not report
+        are filled by fill_schedule: mode disabled, 22:00 to 06:00. Nothing is
+        sent until the user changes one of the three entities.
         """
         if self._closed:
             raise HomeAssistantError("MG5 is shutting down")
         current = self.charge_schedule
-        wanted = ChargeSchedule(
-            start=current.start if start is None else start.replace(second=0, microsecond=0),
-            end=current.end if end is None else end.replace(second=0, microsecond=0),
-            mode=current.mode if mode is None else mode,
-        )
-        if not wanted.complete:
-            raise HomeAssistantError(
-                "The car has not reported its charging schedule yet. "
-                "Press Refresh, then change the schedule."
+        wanted = fill_schedule(
+            ChargeSchedule(
+                start=current.start if start is None else start.replace(second=0, microsecond=0),
+                end=current.end if end is None else end.replace(second=0, microsecond=0),
+                mode=current.mode if mode is None else mode,
             )
+        )
         self._schedule_draft = wanted
         self._schedule_edits += 1
         edit = self._schedule_edits
@@ -420,7 +422,8 @@ class Mg5Coordinator(DataUpdateCoordinator[Mg5Snapshot]):
         if edit != self._schedule_edits:
             return
         self._schedule_draft = None
-        if wanted == self.charge_schedule:
+        shown = self.charge_schedule
+        if shown.complete and wanted == shown:
             self.async_update_listeners()
             return
         self._schedule_sending = wanted

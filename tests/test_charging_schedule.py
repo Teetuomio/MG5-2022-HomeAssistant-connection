@@ -15,6 +15,7 @@ from custom_components.mg5.profile import (
     ChargeSchedule,
     decode_schedule,
     decode_snapshot,
+    fill_schedule,
     merge_cached,
     schedule_clock,
 )
@@ -70,6 +71,17 @@ def test_impossible_clock_values_and_unknown_modes_are_dropped():
     assert schedule_clock(0, 0) == time(0, 0)
     assert decode_schedule({**REPORTED, "bmsReserCtrlDspCmd": 0}).mode is None
     assert decode_schedule({**REPORTED, "bmsReserCtrlDspCmd": 9}).mode is None
+
+
+def test_unreported_parts_fill_with_disabled_and_22_to_06():
+    assert fill_schedule(ChargeSchedule(None, None, None)) == ChargeSchedule(
+        time(22, 0), time(6, 0), SCHEDULE_DISABLED
+    )
+    assert fill_schedule(ChargeSchedule(time(23, 0), None, None)) == ChargeSchedule(
+        time(23, 0), time(6, 0), SCHEDULE_DISABLED
+    )
+    reported = ChargeSchedule(time(0, 0), time(5, 0), SCHEDULE_UNTIL_TARGET_SOC)
+    assert fill_schedule(reported) == reported
 
 
 def test_cached_read_keeps_the_reported_schedule():

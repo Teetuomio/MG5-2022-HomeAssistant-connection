@@ -1,7 +1,8 @@
 """Scheduled-charging mode for the MG5.
 
 Changing the mode resends the daily window with the start and end times the
-car last reported. The window is hour and minute only, with no date.
+car last reported, or 22:00 to 06:00 if it has reported none. The window is
+hour and minute only, with no date.
 """
 
 from __future__ import annotations

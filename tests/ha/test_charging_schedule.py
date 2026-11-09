@@ -108,9 +108,6 @@ async def test_no_reported_schedule_loads_as_unknown(
         ("sensor", "reported_charging_schedule"),
     ):
         assert hass.states.get(_id(hass, domain, key)).state == "unknown", key
-
-    with pytest.raises(HomeAssistantError, match="not reported its charging schedule"):
-        await _set_time(hass, "charging_start", "23:00")
     saic.set_schedule_charging.assert_not_awaited()
 
     notes = [r for r in caplog.records if "no scheduled-charging fields" in r.getMessage()]
@@ -125,6 +122,35 @@ async def test_no_reported_schedule_loads_as_unknown(
     assert saic.get_vehicle_status.await_count == 2
     notes = [r for r in caplog.records if "no scheduled-charging fields" in r.getMessage()]
     assert len(notes) == 1
+
+
+async def test_first_schedule_can_be_set_when_the_car_reports_mode_0_and_no_times(
+    hass: HomeAssistant, saic, entry
+) -> None:
+    await _setup_with(hass, saic, entry, bmsReserCtrlDspCmd=0)
+    assert hass.states.get(_id(hass, "select", "charging_schedule")).state == "unknown"
+    assert hass.states.get(_id(hass, "time", "charging_start")).state == "unknown"
+    for _ in range(3):
+        await _skip(hass, 31)
+    saic.set_schedule_charging.assert_not_awaited()
+
+    await _set_time(hass, "charging_start", "23:00")
+    saic.set_schedule_charging.assert_awaited_once()
+    assert _sent(saic) == (time(23, 0), time(6, 0), ScheduledChargingMode.DISABLED)
+    assert hass.states.get(_id(hass, "time", "charging_start")).state == "23:00:00"
+    assert hass.states.get(_id(hass, "time", "charging_end")).state == "06:00:00"
+    assert hass.states.get(_id(hass, "select", "charging_schedule")).state == "disabled"
+
+
+async def test_first_mode_choice_uses_the_default_window(hass: HomeAssistant, saic, entry) -> None:
+    await _setup_with(hass, saic, entry)
+    await _select(hass, "until_end_time")
+    saic.set_schedule_charging.assert_awaited_once()
+    assert _sent(saic) == (
+        time(22, 0),
+        time(6, 0),
+        ScheduledChargingMode.UNTIL_CONFIGURED_TIME,
+    )
 
 
 async def test_start_time_sends_one_command_with_the_shown_end_and_mode(

@@ -190,7 +190,7 @@ The car accepts about three remote commands between key cycles, and it rejects a
 
 Set the climate temperature first, then turn it on. The on command includes that temperature. Moving the slider while the climate is already on sends one command after the slider settles. Moving it while the climate is off does not spend a command.
 
-The charging schedule is one command for the whole window. Changing the start, the end or the mode sends all three, using the values currently shown for the other two. Changes within 3 seconds of each other are sent together, and picking what the car already reports sends nothing. Until the car has reported a schedule (after the first live read), the schedule entities show *unknown* and cannot be changed.
+The charging schedule is one command for the whole window. Changing the start, the end or the mode sends all three, using the values currently shown for the other two. Changes within 3 seconds of each other are sent together, and picking what the car already reports sends nothing. Until the car has reported a schedule (after the first live read), the schedule entities show *unknown*. You can still set the first schedule from Home Assistant: whatever the car has not reported is filled in as mode *Disabled* and the window 22:00–06:00, and nothing is sent until you change one of the three entities.
 
 A rejected command raises an error in Home Assistant and fires `mg5_command_failed` with `source` and `error`. The event does not include the account or the full VIN.
 
