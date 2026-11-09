@@ -1,6 +1,6 @@
 [project]
 name = "mg5-homeassistant"
-version = "0.1.0"
+version = "0.3.0"
 description = "Home Assistant integration for the 2022 MG5 Electric"
 requires-python = ">=3.12"
 dependencies = ["saic-ismart-client-ng==0.13.1"]
