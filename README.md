@@ -12,6 +12,7 @@ This integration only creates the controls that car can run, and it starts the c
 - Cabin climate: heat/cool or off, 16–28°C. The car heats or cools toward that setpoint. There is no fan slider.
 - Charge limit, in steps of 10 from 40 to 100
 - Start and stop charging. The switch stays off until the car reports that current is flowing. Start is unreliable on this API, and a rejection is shown instead of a switch that pretends it worked.
+- Scheduled charging: start time, end time, and mode (Disabled, Until end time, Until target SOC). The car stores hour and minute only, repeated daily; there is no date or weekday.
 - Find the car (horn and lights)
 - Refresh, which wakes the car for one live read
 - State of charge, range, odometer, temperatures, 12 V battery, tyre pressures, charge power, and location
@@ -188,6 +189,8 @@ If that “running” flag is hours old, it is ignored.
 The car accepts about three remote commands between key cycles, and it rejects a second command sent a few seconds after the first (`return code 4`). Commands are queued at least 25 seconds apart.
 
 Set the climate temperature first, then turn it on. The on command includes that temperature. Moving the slider while the climate is already on sends one command after the slider settles. Moving it while the climate is off does not spend a command.
+
+The charging schedule is one command for the whole window. Changing the start, the end or the mode sends all three, using the values currently shown for the other two. Changes within 3 seconds of each other are sent together, and picking what the car already reports sends nothing. Until the car has reported a schedule (after the first live read), the schedule entities show *unknown* and cannot be changed.
 
 A rejected command raises an error in Home Assistant and fires `mg5_command_failed` with `source` and `error`. The event does not include the account or the full VIN.
 
