@@ -53,7 +53,6 @@ from .profile import (
 )
 from .schedule import (
     POST_COMMAND_DELAY,
-    SCHEDULE_SETTLE_SECONDS,
     TEMP_DEBOUNCE_SECONDS,
     CommandQueue,
     ExpectedValue,
@@ -124,7 +123,6 @@ class Mg5Coordinator(DataUpdateCoordinator[Mg5Snapshot]):
         self._schedule_expect = ExpectedValue()
         self._schedule_draft: ChargeSchedule | None = None
         self._schedule_sending: ChargeSchedule | None = None
-        self._schedule_edits = 0
         self._schedule_fields_logged = False
 
     async def async_close(self) -> None:
@@ -332,9 +330,13 @@ class Mg5Coordinator(DataUpdateCoordinator[Mg5Snapshot]):
 
     @property
     def charge_schedule(self) -> ChargeSchedule:
-        """What the schedule entities show: an unsent edit, then the car's report."""
+        """What the schedule entities show: the staged edit, then the car's report.
+
+        A staged edit is completed with fill_schedule, so the entities show
+        exactly what async_save_schedule would send.
+        """
         if self._schedule_draft is not None:
-            return self._schedule_draft
+            return fill_schedule(self._schedule_draft)
         if self._schedule_sending is not None:
             return self._schedule_sending
         actual = (
@@ -392,37 +394,43 @@ class Mg5Coordinator(DataUpdateCoordinator[Mg5Snapshot]):
         end: dt_time | None = None,
         mode: str | None = None,
     ) -> None:
-        """Change one part of the daily charging window and send the whole window.
+        """Stage one part of the daily charging window. Nothing is sent yet.
 
         Times are hour and minute only; the car has no date or weekday for this.
-        Edits that arrive within SCHEDULE_SETTLE_SECONDS of each other are sent
-        as one command, so moving a time picker twice spends one remote command.
-        Superseded calls return quietly; the call that sends raises if the car
-        rejects the schedule.
-
-        If the car has not reported a full window, the parts it did not report
-        are filled by fill_schedule: mode disabled, 22:00 to 06:00. Nothing is
-        sent until the user changes one of the three entities.
+        The staged window is what the entities show, until async_save_schedule
+        sends it, so the hours, the minutes and the mode can all be changed for
+        the price of one remote command.
         """
         if self._closed:
             raise HomeAssistantError("MG5 is shutting down")
         current = self.charge_schedule
-        wanted = fill_schedule(
-            ChargeSchedule(
-                start=current.start if start is None else start.replace(second=0, microsecond=0),
-                end=current.end if end is None else end.replace(second=0, microsecond=0),
-                mode=current.mode if mode is None else mode,
-            )
+        self._schedule_draft = ChargeSchedule(
+            start=current.start if start is None else start.replace(second=0, microsecond=0),
+            end=current.end if end is None else end.replace(second=0, microsecond=0),
+            mode=current.mode if mode is None else mode,
         )
-        self._schedule_draft = wanted
-        self._schedule_edits += 1
-        edit = self._schedule_edits
         self.async_update_listeners()
-        await asyncio.sleep(SCHEDULE_SETTLE_SECONDS)
-        if edit != self._schedule_edits:
+
+    @property
+    def schedule_pending(self) -> bool:
+        """True while a staged window is waiting for async_save_schedule."""
+        return self._schedule_draft is not None
+
+    async def async_save_schedule(self) -> None:
+        """Send the staged window as one command, or nothing if it did not change.
+
+        If the car has not reported a full window, the parts it did not report
+        are filled by fill_schedule: mode disabled, 22:00 to 06:00. A rejected
+        command keeps the staged window, so it can be retried or discarded.
+        """
+        if self._closed:
+            raise HomeAssistantError("MG5 is shutting down")
+        draft = self._schedule_draft
+        if draft is None:
             return
+        wanted = fill_schedule(draft)
         self._schedule_draft = None
-        shown = self.charge_schedule
+        shown = ChargeSchedule(None, None, None) if self.data is None else self.data.charge_schedule
         if shown.complete and wanted == shown:
             self.async_update_listeners()
             return
@@ -432,10 +440,20 @@ class Mg5Coordinator(DataUpdateCoordinator[Mg5Snapshot]):
                 "charging_schedule",
                 lambda: self._client.set_schedule(self.vin, wanted),
             )
+        except Exception:
+            self._schedule_draft = wanted
+            raise
         finally:
             self._schedule_sending = None
             self.async_update_listeners()
         self._expect(self._schedule_expect, wanted)
+
+    async def async_discard_schedule(self) -> None:
+        """Drop the staged window and show what the car reports again."""
+        if self._schedule_draft is None:
+            return
+        self._schedule_draft = None
+        self.async_update_listeners()
 
     async def async_set_charging(self, start: bool) -> None:
         # No local override. A start the car ignores must stay off.

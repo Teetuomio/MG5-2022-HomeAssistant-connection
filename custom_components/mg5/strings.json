@@ -60,6 +60,14 @@
     }
   },
   "entity": {
+    "button": {
+      "save_schedule": {
+        "name": "Save charging schedule"
+      },
+      "discard_schedule": {
+        "name": "Discard schedule changes"
+      }
+    },
     "select": {
       "charging_schedule": {
         "name": "Charging schedule",

@@ -31,11 +31,6 @@ SCHEDULE = {
 }
 
 
-@pytest.fixture(autouse=True)
-def quick_settle(monkeypatch):
-    monkeypatch.setattr("custom_components.mg5.coordinator.SCHEDULE_SETTLE_SECONDS", 0.05)
-
-
 def _id(hass: HomeAssistant, domain: str, key: str) -> str:
     entity_id = er.async_get(hass).async_get_entity_id(domain, DOMAIN, f"{VIN}_{key}")
     assert entity_id, f"{domain} {key} was not created"
@@ -67,6 +62,18 @@ async def _select(hass: HomeAssistant, option: str) -> None:
         "select_option",
         {"entity_id": _id(hass, "select", "charging_schedule"), "option": option},
         blocking=True,
+    )
+
+
+async def _save(hass: HomeAssistant) -> None:
+    await hass.services.async_call(
+        "button", "press", {"entity_id": _id(hass, "button", "save_schedule")}, blocking=True
+    )
+
+
+async def _discard(hass: HomeAssistant) -> None:
+    await hass.services.async_call(
+        "button", "press", {"entity_id": _id(hass, "button", "discard_schedule")}, blocking=True
     )
 
 
@@ -167,6 +174,9 @@ async def test_first_schedule_can_be_set_when_the_car_reports_mode_0_and_no_time
     saic.set_schedule_charging.assert_not_awaited()
 
     await _set_time(hass, "charging_start", "23:00")
+    saic.set_schedule_charging.assert_not_awaited()
+    assert hass.states.get(_id(hass, "button", "save_schedule")).state != "unavailable"
+    await _save(hass)
     saic.set_schedule_charging.assert_awaited_once()
     assert _sent(saic) == (time(23, 0), time(6, 0), ScheduledChargingMode.DISABLED)
     assert hass.states.get(_id(hass, "time", "charging_start")).state == "23:00:00"
@@ -177,6 +187,8 @@ async def test_first_schedule_can_be_set_when_the_car_reports_mode_0_and_no_time
 async def test_first_mode_choice_uses_the_default_window(hass: HomeAssistant, saic, entry) -> None:
     await _setup_with(hass, saic, entry)
     await _select(hass, "until_end_time")
+    saic.set_schedule_charging.assert_not_awaited()
+    await _save(hass)
     saic.set_schedule_charging.assert_awaited_once()
     assert _sent(saic) == (
         time(22, 0),
@@ -191,6 +203,9 @@ async def test_start_time_sends_one_command_with_the_shown_end_and_mode(
     await _setup_with(hass, saic, entry, **SCHEDULE)
     live_reads = saic.get_vehicle_status.await_count
     await _set_time(hass, "charging_start", "23:15")
+    saic.set_schedule_charging.assert_not_awaited()
+    assert hass.states.get(_id(hass, "time", "charging_start")).state == "23:15:00"
+    await _save(hass)
     saic.set_schedule_charging.assert_awaited_once()
     assert _sent(saic) == (time(23, 15), time(6, 0), ScheduledChargingMode.UNTIL_CONFIGURED_TIME)
     assert hass.states.get(_id(hass, "time", "charging_start")).state == "23:15:00"
@@ -206,6 +221,8 @@ async def test_two_quick_edits_are_one_command(hass: HomeAssistant, saic, entry)
         _set_time(hass, "charging_start", "21:00"),
         _set_time(hass, "charging_end", "07:30"),
     )
+    saic.set_schedule_charging.assert_not_awaited()
+    await _save(hass)
     saic.set_schedule_charging.assert_awaited_once()
     assert _sent(saic) == (time(21, 0), time(7, 30), ScheduledChargingMode.UNTIL_CONFIGURED_TIME)
 
@@ -216,6 +233,7 @@ async def test_dragging_one_picker_twice_is_one_command(hass: HomeAssistant, sai
         _set_time(hass, "charging_start", "21:00"),
         _set_time(hass, "charging_start", "21:30"),
     )
+    await _save(hass)
     saic.set_schedule_charging.assert_awaited_once()
     assert _sent(saic)[0] == time(21, 30)
 
@@ -232,6 +250,9 @@ async def test_mode_change_keeps_the_shown_times(
 ) -> None:
     await _setup_with(hass, saic, entry, **SCHEDULE)
     await _select(hass, option)
+    saic.set_schedule_charging.assert_not_awaited()
+    assert hass.states.get(_id(hass, "select", "charging_schedule")).state == option
+    await _save(hass)
     saic.set_schedule_charging.assert_awaited_once()
     assert _sent(saic) == (time(22, 30), time(6, 0), mode)
     assert hass.states.get(_id(hass, "select", "charging_schedule")).state == option
@@ -243,6 +264,7 @@ async def test_choosing_what_the_car_already_has_sends_nothing(
     await _setup_with(hass, saic, entry, **SCHEDULE)
     await _select(hass, "until_end_time")
     await _set_time(hass, "charging_start", "22:30")
+    await _save(hass)
     saic.set_schedule_charging.assert_not_awaited()
 
 
@@ -254,11 +276,15 @@ async def test_rejected_schedule_raises_and_shows_the_car_value(
     saic.set_schedule_charging.side_effect = SaicApiException(
         "The remote control instruction failed, please try again later.", return_code=4
     )
+    await _select(hass, "disabled")
     with pytest.raises(HomeAssistantError, match="return code: 4"):
-        await _select(hass, "disabled")
+        await _save(hass)
     await hass.async_block_till_done()
     saic.set_schedule_charging.assert_awaited_once()
     assert [event.data["source"] for event in events] == ["charging_schedule"]
+    # The rejected window stays staged so it can be retried or discarded.
+    assert hass.states.get(_id(hass, "select", "charging_schedule")).state == "disabled"
+    await _discard(hass)
     assert hass.states.get(_id(hass, "select", "charging_schedule")).state == "until_end_time"
 
 
@@ -271,3 +297,47 @@ async def test_schedule_entities_do_not_poll(hass: HomeAssistant, saic, entry) -
     assert saic.get_vehicle_status.await_count == live_reads
     assert saic.get_vehicle_charging_management_data.await_count == charging_reads
     saic.set_schedule_charging.assert_not_awaited()
+
+
+async def test_nothing_is_sent_until_save(hass: HomeAssistant, saic, entry) -> None:
+    await _setup_with(hass, saic, entry, **SCHEDULE)
+    assert hass.states.get(_id(hass, "button", "save_schedule")).state == "unavailable"
+
+    await _set_time(hass, "charging_start", "21:00")
+    await _set_time(hass, "charging_end", "07:00")
+    await _select(hass, "until_target_soc")
+    saic.set_schedule_charging.assert_not_awaited()
+
+    assert hass.states.get(_id(hass, "time", "charging_start")).state == "21:00:00"
+    assert hass.states.get(_id(hass, "time", "charging_end")).state == "07:00:00"
+    assert hass.states.get(_id(hass, "select", "charging_schedule")).state == "until_target_soc"
+    assert hass.states.get(_id(hass, "button", "save_schedule")).state != "unavailable"
+
+    await _save(hass)
+    saic.set_schedule_charging.assert_awaited_once()
+    assert _sent(saic) == (
+        time(21, 0),
+        time(7, 0),
+        ScheduledChargingMode.UNTIL_CONFIGURED_SOC,
+    )
+    assert hass.states.get(_id(hass, "button", "save_schedule")).state == "unavailable"
+
+
+async def test_discard_restores_the_car_report(hass: HomeAssistant, saic, entry) -> None:
+    await _setup_with(hass, saic, entry, **SCHEDULE)
+    await _set_time(hass, "charging_start", "21:00")
+    assert hass.states.get(_id(hass, "time", "charging_start")).state == "21:00:00"
+
+    await _discard(hass)
+    assert hass.states.get(_id(hass, "time", "charging_start")).state == "22:30:00"
+    assert hass.states.get(_id(hass, "button", "save_schedule")).state == "unavailable"
+    saic.set_schedule_charging.assert_not_awaited()
+
+
+async def test_save_without_changes_sends_nothing(hass: HomeAssistant, saic, entry) -> None:
+    await _setup_with(hass, saic, entry, **SCHEDULE)
+    await _set_time(hass, "charging_start", "21:00")
+    await _set_time(hass, "charging_start", "22:30")
+    await _save(hass)
+    saic.set_schedule_charging.assert_not_awaited()
+    assert hass.states.get(_id(hass, "button", "save_schedule")).state == "unavailable"

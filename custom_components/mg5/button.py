@@ -11,15 +11,6 @@ from .coordinator import Mg5Coordinator
 from .entity import Mg5Entity
 
 
-async def async_setup_entry(
-    hass: HomeAssistant,
-    entry: object,
-    async_add_entities: AddEntitiesCallback,
-) -> None:
-    coordinator: Mg5Coordinator = hass.data[DOMAIN][entry.entry_id]  # type: ignore[attr-defined]
-    async_add_entities([Mg5FindCarButton(coordinator), Mg5RefreshButton(coordinator)])
-
-
 class Mg5FindCarButton(Mg5Entity, ButtonEntity):
     _attr_name = "Find car"
     _attr_icon = "mdi:car-search"
@@ -42,3 +33,55 @@ class Mg5RefreshButton(Mg5Entity, ButtonEntity):
 
     async def async_press(self) -> None:
         await self.coordinator.async_request_live()
+
+
+class Mg5SaveScheduleButton(Mg5Entity, ButtonEntity):
+    """Send the staged charging window to the car as one command."""
+
+    _attr_translation_key = "save_schedule"
+    _attr_icon = "mdi:content-save"
+
+    def __init__(self, coordinator: Mg5Coordinator) -> None:
+        super().__init__(coordinator)
+        self._attr_unique_id = f"{coordinator.vin}_save_schedule"
+
+    @property
+    def available(self) -> bool:
+        return super().available and self.coordinator.schedule_pending
+
+    async def async_press(self) -> None:
+        await self.coordinator.async_save_schedule()
+
+
+class Mg5DiscardScheduleButton(Mg5Entity, ButtonEntity):
+    """Drop the staged charging window and show the car's report again."""
+
+    _attr_translation_key = "discard_schedule"
+    _attr_icon = "mdi:undo"
+
+    def __init__(self, coordinator: Mg5Coordinator) -> None:
+        super().__init__(coordinator)
+        self._attr_unique_id = f"{coordinator.vin}_discard_schedule"
+
+    @property
+    def available(self) -> bool:
+        return super().available and self.coordinator.schedule_pending
+
+    async def async_press(self) -> None:
+        await self.coordinator.async_discard_schedule()
+
+
+async def async_setup_entry(
+    hass: HomeAssistant,
+    entry: object,
+    async_add_entities: AddEntitiesCallback,
+) -> None:
+    coordinator: Mg5Coordinator = hass.data[DOMAIN][entry.entry_id]  # type: ignore[attr-defined]
+    async_add_entities(
+        [
+            Mg5FindCarButton(coordinator),
+            Mg5RefreshButton(coordinator),
+            Mg5SaveScheduleButton(coordinator),
+            Mg5DiscardScheduleButton(coordinator),
+        ]
+    )

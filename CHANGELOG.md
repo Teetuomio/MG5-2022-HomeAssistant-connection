@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.1
+
+### Changed
+
+- The charging schedule is staged, not sent. Changing the start, the end or the mode only updates what the entities show; **Save charging schedule** sends the whole window as one command, and **Discard schedule changes** drops the staged window. Both buttons are unavailable while nothing is staged. This replaces the 3-second settle window: one save is one command, however many fields you edited.
+
 ## 0.3.0 — 2026-11-09
 
 ### Added

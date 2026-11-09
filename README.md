@@ -12,7 +12,7 @@ This integration only creates the controls that car can run, and it starts the c
 - Cabin climate: heat/cool or off, 16–28°C. The car heats or cools toward that setpoint. There is no fan slider.
 - Charge limit, in steps of 10 from 40 to 100
 - Start and stop charging. The switch stays off until the car reports that current is flowing. Start is unreliable on this API, and a rejection is shown instead of a switch that pretends it worked.
-- Scheduled charging: start time, end time, and mode (Disabled, Until end time, Until target SOC). The car stores hour and minute only, repeated daily; there is no date or weekday.
+- Scheduled charging: start time, end time, and mode (Disabled, Until end time, Until target SOC), with a Save button so the whole window goes to the car as one command. The car stores hour and minute only, repeated daily; there is no date or weekday.
 - Find the car (horn and lights)
 - Refresh, which wakes the car for one live read
 - State of charge, range, odometer, temperatures, 12 V battery, tyre pressures, charge power, and location
@@ -190,7 +190,7 @@ The car accepts about three remote commands between key cycles, and it rejects a
 
 Set the climate temperature first, then turn it on. The on command includes that temperature. Moving the slider while the climate is already on sends one command after the slider settles. Moving it while the climate is off does not spend a command.
 
-The charging schedule is one command for the whole window. Changing the start, the end or the mode sends all three, using the values currently shown for the other two. Changes within 3 seconds of each other are sent together, and picking what the car already reports sends nothing. Until the car has reported a schedule (after the first live read), the schedule entities show *unknown*. You can still set the first schedule from Home Assistant: whatever the car has not reported is filled in as mode *Disabled* and the window 22:00–06:00, and nothing is sent until you change one of the three entities.
+The charging schedule is one command for the whole window. Changing the start, the end or the mode only stages the change: the entities show the staged window, and nothing goes to the car until you press **Save charging schedule**. That way the hours, the minutes and the mode all cost one remote command. **Discard schedule changes** drops the staged window and shows what the car reports again. Saving a window the car already has sends nothing. Until the car has reported a schedule (after the first live read), the schedule entities show *unknown*. You can still set the first schedule from Home Assistant: whatever the car has not reported is filled in as mode *Disabled* and the window 22:00–06:00.
 
 A rejected command raises an error in Home Assistant and fires `mg5_command_failed` with `source` and `error`. The event does not include the account or the full VIN.
 
