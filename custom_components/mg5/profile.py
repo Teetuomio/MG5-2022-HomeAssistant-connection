@@ -12,7 +12,7 @@ Parameter 20 value 0x08 is 22°C on an MG5 (index = celsius - 14). The plain
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
-from datetime import UTC, datetime
+from datetime import UTC, datetime, time
 from typing import Any, Mapping
 
 PACK_KWH = {
@@ -240,6 +240,77 @@ def _target_soc(code: int | None) -> int | None:
     return percent
 
 
+SCHEDULE_DISABLED = "disabled"
+SCHEDULE_UNTIL_END_TIME = "until_end_time"
+SCHEDULE_UNTIL_TARGET_SOC = "until_target_soc"
+
+# ScheduledChargingMode values in saic-ismart-client-ng. The same codes come
+# back in bmsReserCtrlDspCmd.
+SCHEDULE_MODE_CODES: dict[str, int] = {
+    SCHEDULE_UNTIL_END_TIME: 1,
+    SCHEDULE_DISABLED: 2,
+    SCHEDULE_UNTIL_TARGET_SOC: 3,
+}
+_SCHEDULE_MODE_NAMES = {code: name for name, code in SCHEDULE_MODE_CODES.items()}
+SCHEDULE_MODES: tuple[str, ...] = (
+    SCHEDULE_DISABLED,
+    SCHEDULE_UNTIL_END_TIME,
+    SCHEDULE_UNTIL_TARGET_SOC,
+)
+
+
+def schedule_clock(hour: int | None, minute: int | None) -> time | None:
+    """Hour and minute of the charging window, or None when the car sent nothing usable.
+
+    The car stores a time of day only. There is no date or weekday: the window
+    repeats every day until it is changed or disabled.
+    """
+    if hour is None or minute is None:
+        return None
+    if not 0 <= hour <= 23 or not 0 <= minute <= 59:
+        return None
+    return time(hour=int(hour), minute=int(minute))
+
+
+def schedule_mode_name(code: int | None) -> str | None:
+    if code is None:
+        return None
+    return _SCHEDULE_MODE_NAMES.get(int(code))
+
+
+@dataclass(frozen=True)
+class ChargeSchedule:
+    """The daily charging window. Hour and minute only; no date, no weekday."""
+
+    start: time | None
+    end: time | None
+    mode: str | None
+
+    @property
+    def complete(self) -> bool:
+        return self.start is not None and self.end is not None and self.mode is not None
+
+
+@dataclass(frozen=True)
+class ScheduleCommand:
+    start: time
+    end: time
+    mode_code: int
+
+
+def schedule_command(schedule: ChargeSchedule) -> ScheduleCommand:
+    start, end, mode = schedule.start, schedule.end, schedule.mode
+    if start is None or end is None or mode is None:
+        raise ValueError("A charging schedule needs a start time, an end time and a mode")
+    if mode not in SCHEDULE_MODE_CODES:
+        raise ValueError(f"Unknown charging schedule mode: {mode}")
+    return ScheduleCommand(
+        start=start.replace(second=0, microsecond=0),
+        end=end.replace(second=0, microsecond=0),
+        mode_code=SCHEDULE_MODE_CODES[mode],
+    )
+
+
 def _remaining_minutes(value: int | None, valid_flag: int | None) -> int | None:
     if value is None or value >= 1023 or valid_flag == 1:
         return None
@@ -290,6 +361,8 @@ class SensorSpec:
     unit: str | None = None
     state_class: str | None = None
     icon: str | None = None
+    options: tuple[str, ...] | None = None
+    translation_key: str | None = None
 
 
 SENSOR_SPECS: tuple[SensorSpec, ...] = (
@@ -312,6 +385,22 @@ SENSOR_SPECS: tuple[SensorSpec, ...] = (
     SensorSpec("energy_since_charge", "Energy since charge", "energy", "kWh", "total_increasing"),
     SensorSpec("battery_energy", "Battery energy", "energy_storage", "kWh", "measurement"),
     SensorSpec("last_contact", "Last contact", "timestamp", None, None, "mdi:update"),
+    SensorSpec(
+        "reported_charging_start", "Reported charging start", None, None, None, "mdi:clock-start"
+    ),
+    SensorSpec(
+        "reported_charging_end", "Reported charging end", None, None, None, "mdi:clock-end"
+    ),
+    SensorSpec(
+        "reported_charging_schedule",
+        "Reported charging schedule",
+        "enum",
+        None,
+        None,
+        "mdi:calendar-clock",
+        options=SCHEDULE_MODES,
+        translation_key="charging_schedule",
+    ),
 )
 
 
@@ -345,6 +434,9 @@ CONTROL_KEYS = frozenset(
         "find_car",
         "refresh",
         "location",
+        "charging_start",
+        "charging_end",
+        "charging_schedule",
     }
 )
 
@@ -398,6 +490,7 @@ class Mg5Snapshot:
     longitude: float | None
     altitude_m: float | None
     source: str
+    charge_schedule: ChargeSchedule = ChargeSchedule(None, None, None)
 
     def sensor(self, key: str) -> Any:
         return _SENSOR_VALUES[key](self)
@@ -485,6 +578,30 @@ def decode_snapshot(
         longitude=_gps(gps_longitude, gps_status),
         altitude_m=None if gps_altitude is None else float(gps_altitude),
         source=source,
+        charge_schedule=decode_schedule(charge),
+    )
+
+
+SCHEDULE_FIELDS: tuple[str, ...] = (
+    "bmsReserStHourDspCmd",
+    "bmsReserStMintueDspCmd",
+    "bmsReserSpHourDspCmd",
+    "bmsReserSpMintueDspCmd",
+    "bmsReserCtrlDspCmd",
+)
+
+
+def decode_schedule(charge: Mapping[str, Any] | None) -> ChargeSchedule:
+    """The window the car reports in its charging management data."""
+    charge = charge or {}
+    return ChargeSchedule(
+        start=schedule_clock(
+            charge.get("bmsReserStHourDspCmd"), charge.get("bmsReserStMintueDspCmd")
+        ),
+        end=schedule_clock(
+            charge.get("bmsReserSpHourDspCmd"), charge.get("bmsReserSpMintueDspCmd")
+        ),
+        mode=schedule_mode_name(charge.get("bmsReserCtrlDspCmd")),
     )
 
 
@@ -519,6 +636,7 @@ def merge_cached(previous: Mg5Snapshot | None, cached: Mg5Snapshot) -> Mg5Snapsh
         battery_energy_kwh=_energy(soc, cached.battery_capacity_kwh),
         charging=previous.charging,
         cable_connected=previous.cable_connected,
+        charge_schedule=previous.charge_schedule,
         estimated_range_km=cached.estimated_range_km
         if cached.estimated_range_km is not None
         else previous.estimated_range_km,
@@ -545,7 +663,14 @@ _SENSOR_VALUES = {
     "energy_since_charge": lambda snap: snap.energy_since_charge_kwh,
     "battery_energy": lambda snap: snap.battery_energy_kwh,
     "last_contact": lambda snap: snap.last_contact,
+    "reported_charging_start": lambda snap: _clock_text(snap.charge_schedule.start),
+    "reported_charging_end": lambda snap: _clock_text(snap.charge_schedule.end),
+    "reported_charging_schedule": lambda snap: snap.charge_schedule.mode,
 }
+
+
+def _clock_text(value: time | None) -> str | None:
+    return None if value is None else value.strftime("%H:%M")
 
 _BINARY_VALUES = {
     "locked": lambda snap: snap.locked,

@@ -38,6 +38,7 @@ _DEVICE_CLASS = {
     "energy_storage": SensorDeviceClass.ENERGY_STORAGE,
     "duration": SensorDeviceClass.DURATION,
     "timestamp": SensorDeviceClass.TIMESTAMP,
+    "enum": SensorDeviceClass.ENUM,
 }
 
 _UNIT = {
@@ -78,6 +79,10 @@ class Mg5Sensor(Mg5Entity, SensorEntity):
         self._attr_state_class = _STATE_CLASS.get(spec.state_class) if spec.state_class else None
         if spec.icon:
             self._attr_icon = spec.icon
+        if spec.options:
+            self._attr_options = list(spec.options)
+        if spec.translation_key:
+            self._attr_translation_key = spec.translation_key
 
     @property
     def native_value(self):  # type: ignore[no-untyped-def]

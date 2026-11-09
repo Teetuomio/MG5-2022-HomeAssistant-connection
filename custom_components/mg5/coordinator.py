@@ -11,6 +11,7 @@ import asyncio
 import logging
 import time
 from datetime import UTC, datetime, timedelta
+from datetime import time as dt_time
 from typing import Any
 
 from functools import partial
@@ -41,9 +42,17 @@ from .const import (
     DOMAIN,
     EVENT_COMMAND_FAILED,
 )
-from .profile import Mg5Snapshot, decode_snapshot, keep_odometer, merge_cached
+from .profile import (
+    SCHEDULE_FIELDS,
+    ChargeSchedule,
+    Mg5Snapshot,
+    decode_snapshot,
+    keep_odometer,
+    merge_cached,
+)
 from .schedule import (
     POST_COMMAND_DELAY,
+    SCHEDULE_SETTLE_SECONDS,
     TEMP_DEBOUNCE_SECONDS,
     CommandQueue,
     ExpectedValue,
@@ -111,6 +120,11 @@ class Mg5Coordinator(DataUpdateCoordinator[Mg5Snapshot]):
         self._lock_expect = ExpectedValue()
         self._climate_expect = ExpectedValue()
         self._target_expect = ExpectedValue()
+        self._schedule_expect = ExpectedValue()
+        self._schedule_draft: ChargeSchedule | None = None
+        self._schedule_sending: ChargeSchedule | None = None
+        self._schedule_edits = 0
+        self._schedule_fields_logged = False
 
     async def async_close(self) -> None:
         if self._closed:
@@ -229,6 +243,8 @@ class Mg5Coordinator(DataUpdateCoordinator[Mg5Snapshot]):
                         "MG5 charging data was not returned: %s", public_error(err)
                     )
                     charging = None
+                if charging is not None:
+                    self._log_missing_schedule(charging)
                 snapshot = self._decode(status, charging, source="live")
                 if charging is None:
                     snapshot = merge_cached(self.data, snapshot)
@@ -236,6 +252,25 @@ class Mg5Coordinator(DataUpdateCoordinator[Mg5Snapshot]):
             status = await self._client.cached_status(self.vin)
             snapshot = self._decode(status, None, source="cached")
             return merge_cached(self.data, snapshot)
+
+    def _log_missing_schedule(self, charging: Any) -> None:
+        """Log the charging payload once if it has none of the schedule readback fields.
+
+        The field names come from the client's schema, not from a real 2022 MG5.
+        If the car names them differently, this shows what it does send.
+        """
+        if self._schedule_fields_logged:
+            return
+        fields = charge_mapping(charging)
+        if any(fields.get(name) is not None for name in SCHEDULE_FIELDS):
+            return
+        self._schedule_fields_logged = True
+        _LOGGER.info(
+            "MG5 charging data has no scheduled-charging fields (%s). "
+            "Fields the car did send: %s",
+            ", ".join(SCHEDULE_FIELDS),
+            {name: value for name, value in sorted(fields.items()) if value is not None},
+        )
 
     def _decode(self, status: Any, charging: Any, *, source: str) -> Mg5Snapshot:
         basic = public_vars(getattr(status, "basicVehicleStatus", None))
@@ -294,6 +329,18 @@ class Mg5Coordinator(DataUpdateCoordinator[Mg5Snapshot]):
         actual = None if self.data is None else self.data.target_soc
         return self._target_expect.resolve(actual, time.monotonic())
 
+    @property
+    def charge_schedule(self) -> ChargeSchedule:
+        """What the schedule entities show: an unsent edit, then the car's report."""
+        if self._schedule_draft is not None:
+            return self._schedule_draft
+        if self._schedule_sending is not None:
+            return self._schedule_sending
+        actual = (
+            ChargeSchedule(None, None, None) if self.data is None else self.data.charge_schedule
+        )
+        return self._schedule_expect.resolve(actual, time.monotonic())
+
     def _expect(self, holder: ExpectedValue, value: Any) -> None:
         holder.set(value, time.monotonic())
         self.async_update_listeners()
@@ -336,6 +383,56 @@ class Mg5Coordinator(DataUpdateCoordinator[Mg5Snapshot]):
 
         applied = await self._command("charge_limit", _set)
         self._expect(self._target_expect, applied)
+
+    async def async_set_schedule(
+        self,
+        *,
+        start: dt_time | None = None,
+        end: dt_time | None = None,
+        mode: str | None = None,
+    ) -> None:
+        """Change one part of the daily charging window and send the whole window.
+
+        Times are hour and minute only; the car has no date or weekday for this.
+        Edits that arrive within SCHEDULE_SETTLE_SECONDS of each other are sent
+        as one command, so moving a time picker twice spends one remote command.
+        Superseded calls return quietly; the call that sends raises if the car
+        rejects the schedule.
+        """
+        if self._closed:
+            raise HomeAssistantError("MG5 is shutting down")
+        current = self.charge_schedule
+        wanted = ChargeSchedule(
+            start=current.start if start is None else start.replace(second=0, microsecond=0),
+            end=current.end if end is None else end.replace(second=0, microsecond=0),
+            mode=current.mode if mode is None else mode,
+        )
+        if not wanted.complete:
+            raise HomeAssistantError(
+                "The car has not reported its charging schedule yet. "
+                "Press Refresh, then change the schedule."
+            )
+        self._schedule_draft = wanted
+        self._schedule_edits += 1
+        edit = self._schedule_edits
+        self.async_update_listeners()
+        await asyncio.sleep(SCHEDULE_SETTLE_SECONDS)
+        if edit != self._schedule_edits:
+            return
+        self._schedule_draft = None
+        if wanted == self.charge_schedule:
+            self.async_update_listeners()
+            return
+        self._schedule_sending = wanted
+        try:
+            await self._command(
+                "charging_schedule",
+                lambda: self._client.set_schedule(self.vin, wanted),
+            )
+        finally:
+            self._schedule_sending = None
+            self.async_update_listeners()
+        self._expect(self._schedule_expect, wanted)
 
     async def async_set_charging(self, start: bool) -> None:
         # No local override. A start the car ignores must stay off.

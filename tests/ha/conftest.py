@@ -92,18 +92,20 @@ def live_status(**overrides) -> VehicleStatusResp:
     )
 
 
-def charging() -> ChrgMgmtDataResp:
+def charging(**mgmt) -> ChrgMgmtDataResp:
+    fields = {
+        "bmsPackSOCDsp": 965,
+        "bmsEstdElecRng": 243,
+        "bmsOnBdChrgTrgtSOCDspCmd": 5,
+        "bmsPackCrnt": 20000,
+        "bmsPackVol": 1597,
+        "bmsChrgSts": 0,
+        "chrgngRmnngTime": 1023,
+        "chrgngRmnngTimeV": 1,
+    }
+    fields.update(mgmt)
     return ChrgMgmtDataResp(
-        chrgMgmtData=ChrgMgmtData(
-            bmsPackSOCDsp=965,
-            bmsEstdElecRng=243,
-            bmsOnBdChrgTrgtSOCDspCmd=5,
-            bmsPackCrnt=20000,
-            bmsPackVol=1597,
-            bmsChrgSts=0,
-            chrgngRmnngTime=1023,
-            chrgngRmnngTimeV=1,
-        ),
+        chrgMgmtData=ChrgMgmtData(**fields),
         rvsChargeStatus=RvsChargeStatus(
             chargingGunState=0,
             mileageSinceLastCharge=0,
@@ -150,6 +152,7 @@ def saic():
         "control_find_my_car",
         "set_target_battery_soc",
         "control_charging",
+        "set_schedule_charging",
     ):
         setattr(api, name, AsyncMock(return_value=None))
     api.vehicle_list = AsyncMock(return_value=vehicles())

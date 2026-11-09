@@ -6,7 +6,10 @@ from dataclasses import dataclass
 from typing import Any
 
 from saic_ismart_client_ng import SaicApi
-from saic_ismart_client_ng.api.vehicle_charging.schema import TargetBatteryCode
+from saic_ismart_client_ng.api.vehicle_charging.schema import (
+    ScheduledChargingMode,
+    TargetBatteryCode,
+)
 from saic_ismart_client_ng.exceptions import SaicApiException, SaicLogoutException
 from saic_ismart_client_ng.model import (
     MG_AU_BASE_URI,
@@ -15,7 +18,14 @@ from saic_ismart_client_ng.model import (
     SaicApiConfiguration,
 )
 
-from .profile import ClimateCommand, climate_off_command, climate_on_command
+from .profile import (
+    ChargeSchedule,
+    ClimateCommand,
+    ScheduleCommand,
+    climate_off_command,
+    climate_on_command,
+    schedule_command,
+)
 
 READ_TIMEOUT = 45.0
 
@@ -237,3 +247,18 @@ class Mg5Client:
 
     async def set_charging(self, vin: str, *, start: bool) -> None:
         await self._call(self._api.control_charging, vin, stop_charging=not start)
+
+    async def set_schedule(self, vin: str, schedule: ChargeSchedule) -> ScheduleCommand:
+        """Write the daily charging window. Hour and minute only; there is no date."""
+        try:
+            command = schedule_command(schedule)
+        except ValueError as err:
+            raise SaicApiException(str(err)) from err
+        await self._call(
+            self._api.set_schedule_charging,
+            vin,
+            start_time=command.start,
+            end_time=command.end,
+            mode=ScheduledChargingMode(command.mode_code),
+        )
+        return command

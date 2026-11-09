@@ -58,5 +58,35 @@
         }
       }
     }
+  },
+  "entity": {
+    "select": {
+      "charging_schedule": {
+        "name": "Charging schedule",
+        "state": {
+          "disabled": "Disabled",
+          "until_end_time": "Until end time",
+          "until_target_soc": "Until target SOC"
+        }
+      }
+    },
+    "sensor": {
+      "charging_schedule": {
+        "name": "Reported charging schedule",
+        "state": {
+          "disabled": "Disabled",
+          "until_end_time": "Until end time",
+          "until_target_soc": "Until target SOC"
+        }
+      }
+    },
+    "time": {
+      "charging_start": {
+        "name": "Charging start"
+      },
+      "charging_end": {
+        "name": "Charging end"
+      }
+    }
   }
 }
