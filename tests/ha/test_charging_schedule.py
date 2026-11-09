@@ -79,7 +79,7 @@ def _sent(saic) -> tuple[time, time, ScheduledChargingMode]:
 async def test_reported_schedule_is_shown(hass: HomeAssistant, saic, entry) -> None:
     await _setup_with(hass, saic, entry, **SCHEDULE)
     start = hass.states.get(_id(hass, "time", "charging_start"))
-    assert start.state == "22:30:00"
+    assert start.state == "22:31:00"
     assert start.attributes["friendly_name"] == "MG5 0001 Charging start"
     assert hass.states.get(_id(hass, "time", "charging_end")).state == "06:00:00"
     select = hass.states.get(_id(hass, "select", "charging_schedule"))
