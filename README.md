@@ -202,12 +202,21 @@ This codebase was written with AI assistance (Grok 4.7 for the first implementat
 
 ## Tests
 
+On Python 3.12 or 3.13, install the dev requirements and run the decoding, command-byte and scheduling tests:
+
+```bash
+pip install -r requirements-dev.txt
+pytest tests --ignore=tests/ha
+```
+
+On Python 3.14 the same file also installs the pinned Home Assistant test harness (`pytest-homeassistant-custom-component==0.13.375`, Home Assistant 2026.10.4), and plain `pytest` runs those tests and the Home Assistant tests in `tests/ha` too (setup, config flow, re-auth, every control against a mocked iSmart API):
+
 ```bash
 pip install -r requirements-dev.txt
 pytest
 ```
 
-On Python 3.12 or 3.13 that runs the decoding, command-byte and scheduling tests. On Python 3.14 the same file also installs the pinned Home Assistant test harness (`pytest-homeassistant-custom-component==0.13.375`, Home Assistant 2026.10.4), and `pytest` runs the Home Assistant tests in `tests/ha` too (setup, config flow, re-auth, every control against a mocked iSmart API). CI runs both, and a failure in either fails the build.
+Do not run plain `pytest` on 3.12 or 3.13: `tests/ha/conftest.py` imports the Home Assistant test harness, which is not installed there, so collection fails before any test runs. CI runs both jobs, and a failure in either fails the build.
 
 The tests use an anonymized 2022 MG5 status (state of charge, voltages, climate status 2, the bogus 72.5 kWh capacity) and check the climate bytes against the iSmart client. They do not contact MG. Lock, climate and charging still have to be tried once on your own car.
 
